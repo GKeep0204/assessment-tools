@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>交通录像标记工具</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='5' fill='%231f5eff'/><circle cx='12' cy='12' r='5' fill='white'/></svg>">
+  <style>
+    :root {
+      --bg: #0f1319;
+      --panel: #1a212b;
+      --line: #2a3340;
+      --line-soft: #222a34;
+      --ink: #e6ebf1;
+      --sub: #8b98a9;
+      --primary: #4c8dff;
+      --primary-soft: #1d2c44;
+      --green: #34c77b;
+      --red: #ff6369;
+      --shadow: 0 1px 3px rgba(0, 0, 0, .35), 0 1px 2px rgba(0, 0, 0, .25);
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      padding: 28px 24px;
+      min-height: 100vh;
+    }
+    .app { max-width: 1240px; margin: 0 auto; }
+
+    /* 页头 */
+    .topbar { margin-bottom: 22px; }
+    .topbar h1 { font-size: 21px; font-weight: 600; letter-spacing: .2px; }
+    .topbar p { margin-top: 6px; font-size: 13px; color: var(--sub); }
+
+    /* 两栏栅格 */
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 960px) {
+      .workspace { grid-template-columns: minmax(0, 1fr); }
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .player-panel { padding: 20px; }
+    .list-panel { display: flex; flex-direction: column; max-height: 720px; }
+
+    /* 视频源行 */
+    .source-bar {
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .source-bar select {
+      padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+      font-size: 13px; background: var(--line-soft); color: var(--ink); max-width: 240px;
+    }
+    #filePicker { display: none; }
+
+    /* 视频 */
+    .video-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .video-wrap video {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: contain; display: block;
+    }
+    .anno-layer {
+      position: absolute;
+      left: 0; top: 0; right: 0; bottom: 46px;
+      cursor: crosshair; z-index: 2;
+    }
+    .anno-box {
+      position: absolute;
+      border: 3px dashed; border-radius: 10px;
+      pointer-events: none; box-sizing: border-box;
+    }
+    .anno-box.green { border-color: var(--green); background: rgba(52, 199, 123, .16); }
+    .anno-box.red { border-color: var(--red); background: rgba(255, 99, 105, .16); }
+
+    /* 控制行 */
+    .control-row {
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      margin-top: 16px;
+    }
+    .time-badge {
+      font-variant-numeric: tabular-nums;
+      font-size: 13px; color: var(--sub);
+      background: var(--line-soft); border-radius: 8px; padding: 8px 12px;
+    }
+    .time-badge strong { color: var(--ink); font-weight: 600; }
+
+    /* 按钮分层 */
+    button {
+      font-family: inherit; font-size: 13px; cursor: pointer;
+      border: 1px solid transparent; border-radius: 8px;
+      padding: 8px 14px; display: inline-flex; align-items: center; gap: 6px;
+      transition: background .15s ease, border-color .15s ease, opacity .15s ease;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { opacity: .92; }
+    .btn-secondary { background: var(--line-soft); color: #c4cfdb; border-color: var(--line); }
+    .btn-secondary:hover { background: #2a3340; }
+    .btn-danger-ghost { background: var(--panel); color: var(--red); border-color: #5a3338; }
+    .btn-danger-ghost:hover { background: #2a2024; }
+
+    /* 颜色分段选择 */
+    .segmented {
+      display: inline-flex; gap: 2px; background: var(--line-soft);
+      border-radius: 8px; padding: 3px;
+    }
+    .color-btn { background: transparent; color: var(--sub); border: none; padding: 6px 12px; }
+    .color-btn .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .color-btn.green .dot { background: var(--green); }
+    .color-btn.red .dot { background: var(--red); }
+    .color-btn.active { background: #2a3340; color: var(--ink); box-shadow: var(--shadow); }
+
+    .hint { font-size: 12px; color: var(--sub); }
+
+    /* 备注输入行 */
+    .note-row { display: flex; gap: 10px; margin-top: 14px; }
+    .note-row input {
+      flex: 1; min-width: 0;
+      padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;
+      font-size: 14px; font-family: inherit; background: #141a21; color: var(--ink);
+    }
+    .note-row input::placeholder { color: var(--sub); }
+    .note-row input:focus { outline: none; border-color: var(--primary); }
+
+    /* 列表面板 */
+    .panel-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 20px 12px;
+    }
+    .panel-head h2 { font-size: 15px; font-weight: 600; }
+    .count { font-size: 12px; color: var(--sub); }
+    #noteList {
+      list-style: none; padding: 0 20px 20px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    #noteList li {
+      position: relative;
+      background: #20272f; border: 1px solid var(--line); border-radius: 10px;
+      padding: 12px 14px; cursor: pointer;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    #noteList li:hover { border-color: #3a5f9e; box-shadow: var(--shadow); }
+    .note-time {
+      font-variant-numeric: tabular-nums;
+      font-weight: 600; color: var(--primary); font-size: 13px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .note-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .note-dot.green { background: var(--green); }
+    .note-dot.red { background: var(--red); }
+    .note-text { margin-top: 5px; font-size: 14px; color: var(--ink); }
+    .note-del {
+      position: absolute; right: 10px; top: 10px;
+      background: none; color: var(--red); padding: 2px 6px;
+      font-size: 12px; border: none; border-radius: 6px;
+    }
+    .note-del:hover { background: #2a2024; }
+    .empty {
+      color: var(--sub); font-size: 13px; text-align: center;
+      padding: 40px 20px; border: 1px dashed var(--line); border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <h1>交通录像标记工具</h1>
+      <p>回放录像、框选留意目标并留存时间标记，点击列表即可回到对应画面。</p>
+    </header>
+
+    <div class="workspace">
+      <!-- 左侧：视频面板 -->
+      <section class="panel player-panel">
+        <div class="source-bar">
+          <input type="file" id="filePicker" multiple accept="video/mp4,video/*">
+          <button type="button" class="btn-secondary" id="pickFile">选择录像</button>
+          <select id="videoSelect" title="切换视频"></select>
+          <button type="button" id="removeVideo" class="btn-danger-ghost">删除此视频</button>
+        </div>
+
+        <div class="video-wrap">
+          <video id="video" controls playsinline></video>
+          <div class="anno-layer" id="annoLayer"></div>
+        </div>
+
+        <div class="control-row">
+          <button id="playPause" class="btn-secondary">播放 / 暂停</button>
+          <span class="time-badge">当前时刻 <strong id="currentTime">00:00</strong></span>
+          <div class="segmented">
+            <button type="button" class="color-btn green active" id="colorGreen"><span class="dot"></span>绿色框</button>
+            <button type="button" class="color-btn red" id="colorRed"><span class="dot"></span>红色框</button>
+          </div>
+          <button type="button" id="clearBox" class="btn-secondary">清除当前框</button>
+          <span class="hint">暂停后在画面上按住拖拽即可框选目标</span>
+        </div>
+
+        <div class="note-row">
+          <input type="text" id="noteInput" placeholder="写一句备注，例如：留意右侧车道的白车">
+          <button id="saveNote" class="btn-primary">保存标记</button>
+        </div>
+      </section>
+
+      <!-- 右侧：标记列表面板 -->
+      <aside class="panel list-panel">
+        <div class="panel-head">
+          <h2>标记列表</h2>
+          <span class="count" id="noteCount"></span>
+        </div>
+        <ul id="noteList"><li class="empty">还没有标记，先暂停视频再写备注保存。</li></ul>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+    const filePicker = document.getElementById('filePicker');
+    const pickFileBtn = document.getElementById('pickFile');
+    const videoSelect = document.getElementById('videoSelect');
+    const removeVideoBtn = document.getElementById('removeVideo');
+    const playPauseBtn = document.getElementById('playPause');
+    const currentTimeEl = document.getElementById('currentTime');
+    const noteInput = document.getElementById('noteInput');
+    const saveBtn = document.getElementById('saveNote');
+    const noteList = document.getElementById('noteList');
+    const noteCount = document.getElementById('noteCount');
+    const annoLayer = document.getElementById('annoLayer');
+    const colorGreen = document.getElementById('colorGreen');
+    const colorRed = document.getElementById('colorRed');
+    const clearBoxBtn = document.getElementById('clearBox');
+
+    const STORAGE_KEY = 'traffic_video_notes';
+    let videos = [];
+    let currentVideoId = null;
+    let notes = [];
+    let selectedColor = 'green';
+    let draftBox = null;
+    let drawing = false;
+    let startX = 0, startY = 0, tempRect = null;
+
+    function loadNotes() {
+      try { notes = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+      catch (e) { notes = []; }
+    }
+    function persistNotes() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+    }
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    }
+    function currentVideo() {
+      return videos.find(v => v.id === currentVideoId) || null;
+    }
+    function currentNotes() {
+      return notes.filter(n => n.videoId === currentVideoId);
+    }
+
+    function setColor(c) {
+      selectedColor = c;
+      colorGreen.classList.toggle('active', c === 'green');
+      colorRed.classList.toggle('active', c === 'red');
+    }
+    colorGreen.addEventListener('click', () => setColor('green'));
+    colorRed.addEventListener('click', () => setColor('red'));
+
+    clearBoxBtn.addEventListener('click', () => {
+      drawing = false;
+      tempRect = null;
+      draftBox = null;
+      showBox(null);
+    });
+
+    function layerPos(e) {
+      const r = annoLayer.getBoundingClientRect();
+      return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+    }
+    function updateRect(x1, y1, x2, y2) {
+      const x = Math.min(x1, x2), y = Math.min(y1, y2);
+      const w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
+      tempRect.style.left = x * 100 + '%';
+      tempRect.style.top = y * 100 + '%';
+      tempRect.style.width = w * 100 + '%';
+      tempRect.style.height = h * 100 + '%';
+    }
+    annoLayer.addEventListener('mousedown', (e) => {
+      if (!currentVideo()) { alert('请先添加视频'); return; }
+      drawing = true;
+      const p = layerPos(e);
+      startX = p.x; startY = p.y;
+      tempRect = document.createElement('div');
+      tempRect.className = 'anno-box ' + selectedColor;
+      annoLayer.appendChild(tempRect);
+      updateRect(p.x, p.y, p.x, p.y);
+    });
+    annoLayer.addEventListener('mousemove', (e) => {
+      if (!drawing) return;
+      const p = layerPos(e);
+      updateRect(startX, startY, p.x, p.y);
+    });
+    annoLayer.addEventListener('mouseup', (e) => {
+      if (!drawing) return;
+      drawing = false;
+      const p = layerPos(e);
+      const x = Math.min(startX, p.x), y = Math.min(startY, p.y);
+      const w = Math.abs(p.x - startX), h = Math.abs(p.y - startY);
+      if (w < 0.02 || h < 0.02) {
+        if (tempRect) tempRect.remove();
+        tempRect = null; draftBox = null; return;
+      }
+      draftBox = {
+        x: +x.toFixed(4), y: +y.toFixed(4),
+        w: +w.toFixed(4), h: +h.toFixed(4),
+        color: selectedColor
+      };
+      tempRect = null;
+    });
+
+    function showBox(box) {
+      annoLayer.innerHTML = '';
+      if (!box) return;
+      const d = document.createElement('div');
+      d.className = 'anno-box ' + (box.color === 'red' ? 'red' : 'green');
+      d.style.left = box.x * 100 + '%';
+      d.style.top = box.y * 100 + '%';
+      d.style.width = box.w * 100 + '%';
+      d.style.height = box.h * 100 + '%';
+      annoLayer.appendChild(d);
+    }
+
+    function renderVideoSelect() {
+      videoSelect.innerHTML = '';
+      if (videos.length === 0) {
+        const opt = document.createElement('option');
+        opt.textContent = '（暂无视频）';
+        videoSelect.appendChild(opt);
+        return;
+      }
+      videos.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.id;
+        opt.textContent = v.name;
+        videoSelect.appendChild(opt);
+      });
+      videoSelect.value = currentVideoId || '';
+    }
+
+    function switchVideo(id) {
+      currentVideoId = id;
+      const v = currentVideo();
+      if (v) { video.src = v.url; video.load(); }
+      else { video.removeAttribute('src'); video.load(); }
+      renderVideoSelect();
+      showBox(null);
+      draftBox = null;
+      renderNotes();
+    }
+
+    pickFileBtn.addEventListener('click', () => filePicker.click());
+
+    filePicker.addEventListener('change', () => {
+      const files = Array.from(filePicker.files || []);
+      if (files.length === 0) return;
+      files.forEach(f => {
+        const id = 'v' + Date.now() + Math.random().toString(36).slice(2, 6);
+        videos.push({ id, name: f.name, url: URL.createObjectURL(f) });
+      });
+      const last = videos[videos.length - 1];
+      switchVideo(last.id);
+      filePicker.value = '';
+    });
+
+    videoSelect.addEventListener('change', () => {
+      switchVideo(videoSelect.value);
+    });
+
+    removeVideoBtn.addEventListener('click', () => {
+      if (!currentVideo()) { alert('当前没有可删除的视频'); return; }
+      if (!confirm('确定删除此视频及其全部标记吗？')) return;
+      notes = notes.filter(n => n.videoId !== currentVideoId);
+      persistNotes();
+      const idx = videos.findIndex(v => v.id === currentVideoId);
+      videos.splice(idx, 1);
+      const next = videos[idx] || videos[idx - 1];
+      if (next) switchVideo(next.id);
+      else {
+        currentVideoId = null;
+        video.removeAttribute('src');
+        video.load();
+        renderVideoSelect();
+        renderNotes();
+      }
+    });
+
+    playPauseBtn.addEventListener('click', () => {
+      if (!currentVideo()) { alert('请先添加视频'); return; }
+      if (video.paused) video.play(); else video.pause();
+    });
+
+    video.addEventListener('timeupdate', () => {
+      currentTimeEl.textContent = formatTime(video.currentTime);
+    });
+
+    saveBtn.addEventListener('click', () => {
+      if (!currentVideo()) { alert('请先添加视频'); return; }
+      const text = noteInput.value.trim();
+      if (!text) { alert('备注内容不能为空'); return; }
+
+      notes.push({
+        id: 'n' + Date.now() + Math.random().toString(36).slice(2, 6),
+        videoId: currentVideoId,
+        videoName: currentVideo().name,
+        time: video.currentTime,
+        text: text,
+        box: draftBox
+      });
+      notes.sort((a, b) => a.time - b.time);
+      draftBox = null;
+      showBox(null);
+      persistNotes();
+      renderNotes();
+      noteInput.value = '';
+    });
+
+    noteInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') saveBtn.click();
+    });
+
+    function renderNotes() {
+      noteList.innerHTML = '';
+      const list = currentNotes();
+      noteCount.textContent = list.length ? list.length + ' 条标记' : '';
+      if (list.length === 0) {
+        noteList.innerHTML = '<li class="empty">还没有标记，先暂停视频再写备注保存。</li>';
+        return;
+      }
+      list.forEach((note) => {
+        const li = document.createElement('li');
+        const timeDiv = document.createElement('div');
+        timeDiv.className = 'note-time';
+        if (note.box) {
+          const dot = document.createElement('span');
+          dot.className = 'note-dot ' + (note.box.color === 'red' ? 'red' : 'green');
+          timeDiv.appendChild(dot);
+        }
+        timeDiv.appendChild(document.createTextNode(' ' + formatTime(note.time)));
+        const textDiv = document.createElement('div');
+        textDiv.className = 'note-text';
+        textDiv.textContent = note.text;
+        li.appendChild(timeDiv);
+        li.appendChild(textDiv);
+
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'note-del';
+        delBtn.textContent = '删除';
+        delBtn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          notes = notes.filter(n => n.id !== note.id);
+          persistNotes();
+          showBox(null);
+          renderNotes();
+        });
+        li.appendChild(delBtn);
+
+        li.addEventListener('click', () => {
+          showBox(note.box);
+          if (!currentVideo()) { alert('请先添加视频'); return; }
+          video.currentTime = note.time;
+          video.pause();
+          currentTimeEl.textContent = formatTime(note.time);
+        });
+        noteList.appendChild(li);
+      });
+    }
+
+    loadNotes();
+    renderVideoSelect();
+    renderNotes();
+  </script>
+</body>
+</html>
