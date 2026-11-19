@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>交通录像标记工具</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2312151a'/%3E%3Cpath d='M8 11h11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2z' fill='%23f2a03d'/%3E%3Cpath d='M22 14.2l5-2.6v9l-5-2.6z' fill='%23f2a03d'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#12151a;
+  --surface:#1a1f26;
+  --surface-2:#20262f;
+  --line:#2b333d;
+  --text:#e8edf3;
+  --muted:#93a0ae;
+  --accent:#f2a03d;
+  --accent-dim:rgba(242,160,61,.13);
+  --danger:#e2695f;
+  --radius:10px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:15px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+button{
+  font-family:inherit;
+  font-size:15px;
+  color:var(--text);
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:0 16px;
+  height:44px;
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  transition:background .15s,border-color .15s,opacity .15s;
+}
+button:hover:not(:disabled){background:#28303a;border-color:#3a4552;}
+button:active:not(:disabled){transform:translateY(1px);}
+button:disabled{opacity:.42;cursor:not-allowed;}
+button.primary{
+  background:var(--accent);
+  border-color:var(--accent);
+  color:#1b1206;
+  font-weight:600;
+}
+button.primary:hover:not(:disabled){background:#f7ad55;border-color:#f7ad55;}
+button.ghost{background:transparent;}
+button.danger{color:var(--danger);border-color:#4a3330;background:transparent;}
+button.danger:hover:not(:disabled){background:rgba(226,105,95,.1);border-color:#6b423d;}
+
+/* ===== 顶栏 ===== */
+.topbar{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:10px 16px;
+  padding:14px 18px;
+  border-bottom:1px solid var(--line);
+  background:var(--surface);
+}
+.brand{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  font-weight:600;
+  font-size:16px;
+  letter-spacing:.3px;
+}
+.brand svg{width:22px;height:22px;flex:none;color:var(--accent);}
+.filemeta{
+  margin-left:auto;
+  font-size:13px;
+  color:var(--muted);
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+/* ===== 主体 ===== */
+main{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:16px;
+  padding:16px;
+  align-items:stretch;
+}
+.stage,.panel{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:14px;
+  min-width:0;
+}
+
+/* 视频区 */
+.video-wrap{
+  position:relative;
+  width:100%;
+  aspect-ratio:16/9;
+  background:#000;
+  border-radius:8px;
+  overflow:hidden;
+  border:1px dashed transparent;
+}
+.video-wrap.dragover{border-color:var(--accent);}
+video{
+  display:block;
+  width:100%;
+  height:100%;
+  background:#000;
+  object-fit:contain;
+}
+video.hidden{display:none;}
+.placeholder{
+  position:absolute;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  text-align:center;
+  padding:20px;
+  color:var(--muted);
+  background:radial-gradient(120% 120% at 50% 0%,#1b2129 0%,#0f1216 70%);
+}
+.placeholder svg{width:40px;height:40px;color:#5b6773;}
+.placeholder p{margin:0;font-size:14px;}
+.placeholder .tip{font-size:12.5px;color:#6f7b88;}
+
+/* 播放控制条 */
+.transport{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:10px;
+  margin-top:12px;
+}
+.clock{
+  margin-left:auto;
+  font-size:13.5px;
+  color:var(--muted);
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+.clock strong{color:var(--text);font-weight:600;}
+.clock .sep{margin:0 6px;color:#4a5461;}
+
+/* 备注输入 */
+.composer{
+  margin-top:16px;
+  padding-top:14px;
+  border-top:1px solid var(--line);
+}
+.composer label{
+  display:block;
+  font-size:13.5px;
+  color:var(--muted);
+  margin-bottom:8px;
+}
+#noteInput{
+  width:100%;
+  min-height:78px;
+  max-height:180px;
+  resize:vertical;
+  background:#141922;
+  color:var(--text);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:10px 12px;
+  font-family:inherit;
+  font-size:16px;
+  line-height:1.55;
+  outline:none;
+}
+#noteInput:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);}
+#noteInput::placeholder{color:#5f6b78;}
+.composer-actions{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:10px;
+  margin-top:10px;
+}
+.hint{font-size:12.5px;color:#6f7b88;}
+
+/* 标记列表 */
+.panel{display:flex;flex-direction:column;gap:12px;}
+.panel-head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.panel-head h2{
+  margin:0;
+  font-size:15px;
+  font-weight:600;
+}
+.count{
+  font-size:12.5px;
+  color:var(--accent);
+  background:var(--accent-dim);
+  border:1px solid rgba(242,160,61,.28);
+  border-radius:999px;
+  padding:1px 9px;
+  font-variant-numeric:tabular-nums;
+}
+.note-list{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  flex:1 1 auto;
+  min-height:180px;
+  overflow-y:auto;
+  padding-right:2px;
+}
+.empty{
+  border:1px dashed var(--line);
+  border-radius:8px;
+  padding:22px 14px;
+  text-align:center;
+  font-size:13.5px;
+  color:#6f7b88;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex:1 1 auto;
+}
+.note-item{
+  position:relative;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:10px 12px 10px 12px;
+  cursor:pointer;
+  transition:background .15s,border-color .15s;
+}
+.note-item:hover{background:#252d37;border-color:#3d4855;}
+.note-item:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+.note-item.flash{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-dim);
+}
+.note-top{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:4px;
+}
+.chip{
+  font-size:12.5px;
+  font-weight:600;
+  color:var(--accent);
+  background:var(--accent-dim);
+  border-radius:5px;
+  padding:1px 7px;
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+.idx{
+  font-size:12px;
+  color:#6f7b88;
+  font-variant-numeric:tabular-nums;
+}
+.del{
+  margin-left:auto;
+  height:28px;
+  width:28px;
+  padding:0;
+  justify-content:center;
+  border-radius:6px;
+  background:transparent;
+  border-color:transparent;
+  color:#7c8895;
+  flex:none;
+}
+.del:hover{color:var(--danger);background:rgba(226,105,95,.1);border-color:transparent;}
+.note-text{
+  font-size:14px;
+  color:#d5dde6;
+  word-break:break-word;
+  white-space:pre-wrap;
+}
+.panel-foot{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  padding-top:12px;
+  border-top:1px solid var(--line);
+}
+
+/* 提示条 */
+#toast{
+  position:fixed;
+  left:50%;
+  bottom:26px;
+  transform:translate(-50%,16px);
+  background:#252d38;
+  border:1px solid #3d4855;
+  color:var(--text);
+  font-size:13.5px;
+  padding:9px 16px;
+  border-radius:8px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .18s,transform .18s;
+  max-width:calc(100vw - 32px);
+  text-align:center;
+  z-index:10;
+}
+#toast.show{opacity:1;transform:translate(-50%,0);}
+
+@media (min-width:900px){
+  main{
+    grid-template-columns:minmax(0,1.62fr) minmax(320px,1fr);
+    padding:18px;
+    gap:18px;
+  }
+  .stage,.panel{padding:16px;}
+  .panel{min-height:100%;}
+  #noteInput{min-height:86px;}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="2.5" y="6.5" width="13" height="11" rx="2.2"></rect>
+      <path d="M15.5 11.2l6-3.2v11l-6-3.2z"></path>
+    </svg>
+    交通录像标记工具
+  </div>
+  <div class="filemeta" id="fileName">未加载录像</div>
+</header>
+
+<main>
+  <!-- ===== 视频与标记输入 ===== -->
+  <section class="stage">
+    <div class="video-wrap" id="dropZone">
+      <video id="video" class="hidden" controls playsinline preload="metadata"></video>
+      <div class="placeholder" id="placeholder">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 16.5V6"></path>
+          <path d="M7.5 10.5L12 6l4.5 4.5"></path>
+          <path d="M4 17.5v1A2.5 2.5 0 0 0 6.5 21h11A2.5 2.5 0 0 0 20 18.5"></path>
+        </svg>
+        <p>还没有加载录像</p>
+        <p class="tip">点击「加载录像」选择本地 mp4 文件，或把视频拖到此处</p>
+      </div>
+    </div>
+
+    <div class="transport">
+      <input type="file" id="fileInput" accept="video/mp4,video/*" style="display:none">
+      <button id="openBtn" type="button">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 7.5A1.8 1.8 0 0 1 4.8 5.7h4l2 2.4h8.4A1.8 1.8 0 0 1 21 9.9v9.2a1.8 1.8 0 0 1-1.8 1.8H4.8A1.8 1.8 0 0 1 3 19.1z"></path>
+        </svg>
+        加载录像
+      </button>
+      <button id="playBtn" type="button" disabled>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.2l11 6.8-11 6.8z"></path></svg>
+        播放
+      </button>
+      <button id="pauseBtn" type="button" disabled>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="5" width="3.6" height="14"></rect><rect x="13.4" y="5" width="3.6" height="14"></rect></svg>
+        暂停
+      </button>
+      <span class="clock">
+        当前 <strong id="timeNow">00:00.0</strong>
+        <span class="sep">/</span><span id="timeDur">--:--.-</span>
+      </span>
+    </div>
+
+    <div class="composer">
+      <label for="noteInput">停留到要标记的画面上，写下要让队友观察的内容</label>
+      <textarea id="noteInput" placeholder="例如：此处暂停，请观察右侧车道白色轿车是否有变道意图"></textarea>
+      <div class="composer-actions">
+        <button id="saveBtn" type="button" class="primary" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12.5l4.5 4.5L19 7.5"></path>
+          </svg>
+          保存当前画面标记
+        </button>
+        <span class="hint">保存时会自动记录当前时间并暂停视频 · Ctrl + Enter 快捷保存</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 标记列表 ===== -->
+  <aside class="panel">
+    <div class="panel-head">
+      <h2>标记列表</h2>
+      <span class="count" id="count">0</span>
+      <span class="hint" style="margin-left:auto">点击条目回到对应画面</span>
+    </div>
+    <div class="note-list" id="noteList"></div>
+    <div class="panel-foot">
+      <button id="exportBtn" type="button" class="ghost" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 4v11"></path>
+          <path d="M7.5 10.5L12 15l4.5-4.5"></path>
+          <path d="M4.5 19.5h15"></path>
+        </svg>
+        导出备注
+      </button>
+      <button id="clearBtn" type="button" class="danger" disabled>清空全部</button>
+    </div>
+  </aside>
+</main>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var STORE_KEY = "traffic-video-marker-notes-v1";
+
+  var video = document.getElementById("video");
+  var placeholder = document.getElementById("placeholder");
+  var dropZone = document.getElementById("dropZone");
+  var fileInput = document.getElementById("fileInput");
+  var openBtn = document.getElementById("openBtn");
+  var playBtn = document.getElementById("playBtn");
+  var pauseBtn = document.getElementById("pauseBtn");
+  var timeNow = document.getElementById("timeNow");
+  var timeDur = document.getElementById("timeDur");
+  var fileName = document.getElementById("fileName");
+  var noteInput = document.getElementById("noteInput");
+  var saveBtn = document.getElementById("saveBtn");
+  var noteList = document.getElementById("noteList");
+  var countEl = document.getElementById("count");
+  var exportBtn = document.getElementById("exportBtn");
+  var clearBtn = document.getElementById("clearBtn");
+  var toastEl = document.getElementById("toast");
+
+  var state = {
+    videoKey: "",
+    videoName: "",
+    notes: [],
+    objectUrl: "",
+    token: 0
+  };
+
+  // ---------- 工具函数 ----------
+  function pad2(n){ return n < 10 ? "0" + n : "" + n; }
+
+  function fmtTime(sec){
+    if (!isFinite(sec) || sec < 0) sec = 0;
+    var m = Math.floor(sec / 60);
+    var s = sec - m * 60;
+    var sInt = Math.floor(s);
+    var tenth = Math.floor((s - sInt) * 10);
+    return pad2(m) + ":" + pad2(sInt) + "." + tenth;
+  }
+
+  function showToast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(function(){ toastEl.classList.remove("show"); }, 1600);
+  }
+
+  function readStore(){
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      var obj = raw ? JSON.parse(raw) : {};
+      return (obj && typeof obj === "object") ? obj : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function writeStore(obj){
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(obj));
+    } catch (e) {
+      showToast("备注未能本地保存（浏览器限制），本次仍可使用");
+    }
+  }
+
+  function persistNotes(){
+    if (!state.videoKey) return;
+    var all = readStore();
+    all[state.videoKey] = state.notes;
+    writeStore(all);
+  }
+
+  function setLoadedUI(loaded){
+    playBtn.disabled = !loaded;
+    pauseBtn.disabled = !loaded;
+    saveBtn.disabled = !loaded;
+  }
+
+  // ---------- 渲染列表 ----------
+  function renderList(){
+    countEl.textContent = String(state.notes.length);
+    exportBtn.disabled = state.notes.length === 0;
+    clearBtn.disabled = state.notes.length === 0;
+    noteList.textContent = "";
+
+    if (state.notes.length === 0){
+      var empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = state.videoKey
+        ? "还没有标记。暂停到目标画面，写一句备注就能存下第一条。"
+        : "加载录像后，就可以在这里累积标记了。";
+      noteList.appendChild(empty);
+      return;
+    }
+
+    var frag = document.createDocumentFragment();
+    // 最新的排在最前
+    for (var i = state.notes.length - 1; i >= 0; i--){
+      frag.appendChild(buildNoteItem(state.notes[i], i + 1));
+    }
+    noteList.appendChild(frag);
+  }
+
+  function buildNoteItem(note, index){
+    var item = document.createElement("div");
+    item.className = "note-item";
+    item.setAttribute("role", "button");
+    item.setAttribute("tabindex", "0");
+    item.setAttribute("data-id", String(note.id));
+    item.setAttribute("title", "跳转到 " + fmtTime(note.t));
+
+    var top = document.createElement("div");
+    top.className = "note-top";
+
+    var chip = document.createElement("span");
+    chip.className = "chip";
+    chip.textContent = fmtTime(note.t);
+
+    var idx = document.createElement("span");
+    idx.className = "idx";
+    idx.textContent = "#" + index;
+
+    var del = document.createElement("button");
+    del.className = "del";
+    del.type = "button";
+    del.setAttribute("aria-label", "删除这条标记");
+    del.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6l-12 12"></path></svg>';
+
+    top.appendChild(chip);
+    top.appendChild(idx);
+    top.appendChild(del);
+
+    var text = document.createElement("div");
+    text.className = "note-text";
+    text.textContent = note.text;
+
+    item.appendChild(top);
+    item.appendChild(text);
+
+    function activate(e){
+      if (e.target && e.target.closest && e.target.closest(".del")) return;
+      jumpTo(note.t);
+    }
+    item.addEventListener("click", activate);
+    item.addEventListener("keydown", function(e){
+      if (e.key === "Enter" || e.key === " "){
+        e.preventDefault();
+        jumpTo(note.t);
+      }
+    });
+    del.addEventListener("click", function(e){
+      e.stopPropagation();
+      removeNote(note.id);
+    });
+
+    return item;
+  }
+
+  // ---------- 跳转 ----------
+  function jumpTo(t){
+    if (!state.videoKey || !video.src){
+      showToast("请先加载录像");
+      return;
+    }
+    video.pause();
+    try {
+      video.currentTime = Math.max(0, t);
+    } catch (e) {
+      return;
+    }
+    timeNow.textContent = fmtTime(t);
+    var target = noteList.querySelector('[data-id="' + String(findIdByTime(t)) + '"]');
+    if (target){
+      noteList.scrollTop = 0;
+      target.scrollIntoView({ block: "nearest" });
+      target.classList.add("flash");
+      setTimeout(function(){ target.classList.remove("flash"); }, 900);
+    }
+    showToast("已跳转到 " + fmtTime(t));
+  }
+
+  function findIdByTime(t){
+    for (var i = 0; i < state.notes.length; i++){
+      if (Math.abs(state.notes[i].t - t) < 0.0001) return state.notes[i].id;
+    }
+    return "";
+  }
+
+  // ---------- 新增 / 删除 ----------
+  function addNote(){
+    if (!state.videoKey){
+      showToast("请先加载录像");
+      return;
+    }
+    var text = noteInput.value.trim();
+    if (!text){
+      showToast("先写一句备注，再保存");
+      noteInput.focus();
+      return;
+    }
+    video.pause();
+    var t = video.currentTime || 0;
+    state.notes.push({
+      id: Date.now() + "-" + Math.floor(Math.random() * 1000),
+      t: t,
+      text: text,
+      addedAt: Date.now()
+    });
+    persistNotes();
+    renderList();
+    noteInput.value = "";
+    noteInput.focus();
+    showToast("已保存 " + fmtTime(t) + " 的标记");
+  }
+
+  function removeNote(id){
+    var rest = [];
+    var removedT = null;
+    for (var i = 0; i < state.notes.length; i++){
+      if (String(state.notes[i].id) === String(id)){
+        removedT = state.notes[i].t;
+      } else {
+        rest.push(state.notes[i]);
+      }
+    }
+    state.notes = rest;
+    persistNotes();
+    renderList();
+    showToast(removedT !== null ? "已删除 " + fmtTime(removedT) + " 的标记" : "已删除标记");
+  }
+
+  function clearAll(){
+    if (state.notes.length === 0) return;
+    var ok = window.confirm("确定清空全部 " + state.notes.length + " 条标记吗？此操作不可撤销。");
+    if (!ok) return;
+    state.notes = [];
+    persistNotes();
+    renderList();
+    showToast("已清空全部标记");
+  }
+
+  // ---------- 加载录像 ----------
+  function loadVideoFile(file){
+    if (!file) return;
+    if (!/^video\//.test(file.type) && !/\.(mp4|mov|m4v|webm|avi|mkv)$/i.test(file.name)){
+      showToast("请选择视频文件（推荐 mp4）");
+      return;
+    }
+    if (state.objectUrl){
+      URL.revokeObjectURL(state.objectUrl);
+      state.objectUrl = "";
+    }
+    state.token++;
+    var token = state.token;
+    state.objectUrl = URL.createObjectURL(file);
+    state.videoKey = file.name + "|" + file.size;
+    state.videoName = file.name;
+
+    video.src = state.objectUrl;
+    video.load();
+    video.classList.remove("hidden");
+    placeholder.style.display = "none";
+
+    fileName.textContent = file.name + " · " + (file.size / 1048576).toFixed(1) + " MB";
+    timeNow.textContent = "00:00.0";
+    timeDur.textContent = "--:--.-";
+    setLoadedUI(true);
+
+    var all = readStore();
+    var saved = all[state.videoKey];
+    state.notes = Array.isArray(saved) ? saved.filter(function(n){
+      return n && typeof n.t === "number" && typeof n.text === "string";
+    }) : [];
+    renderList();
+
+    if (token === state.token){
+      showToast(state.notes.length
+        ? "录像已加载，找回该录像的 " + state.notes.length + " 条历史标记"
+        : "录像已加载，可以开始标记了");
+    }
+  }
+
+  // ---------- 事件绑定 ----------
+  openBtn.addEventListener("click", function(){ fileInput.click(); });
+
+  fileInput.addEventListener("change", function(e){
+    var file = e.target.files && e.target.files[0];
+    loadVideoFile(file);
+    fileInput.value = "";
+  });
+
+  playBtn.addEventListener("click", function(){
+    if (!state.videoKey) return;
+    var p = video.play();
+    if (p && p.catch) p.catch(function(){ showToast("无法播放，请确认视频格式"); });
+  });
+
+  pauseBtn.addEventListener("click", function(){
+    if (!state.videoKey) return;
+    video.pause();
+  });
+
+  saveBtn.addEventListener("click", addNote);
+  exportBtn.addEventListener("click", exportNotes);
+  clearBtn.addEventListener("click", clearAll);
+
+  video.addEventListener("timeupdate", function(){
+    timeNow.textContent = fmtTime(video.currentTime);
+  });
+  video.addEventListener("loadedmetadata", function(){
+    timeDur.textContent = fmtTime(video.duration);
+  });
+  video.addEventListener("error", function(){
+    if (!state.videoKey) return;
+    showToast("这个视频无法解码，建议换成 mp4（H.264）格式");
+  });
+
+  // 拖拽加载
+  ["dragenter", "dragover"].forEach(function(ev){
+    dropZone.addEventListener(ev, function(e){
+      e.preventDefault();
+      dropZone.classList.add("dragover");
+    });
+  });
+  ["dragleave", "drop"].forEach(function(ev){
+    dropZone.addEventListener(ev, function(e){
+      e.preventDefault();
+      dropZone.classList.remove("dragover");
+    });
+  });
+  dropZone.addEventListener("drop", function(e){
+    var dt = e.dataTransfer;
+    if (dt && dt.files && dt.files[0]) loadVideoFile(dt.files[0]);
+  });
+
+  // 键盘快捷键
+  document.addEventListener("keydown", function(e){
+    var tag = (e.target && e.target.tagName) || "";
+    var typing = tag === "TEXTAREA" || tag === "INPUT";
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter"){
+      e.preventDefault();
+      addNote();
+      return;
+    }
+    if (typing) return;
+    if (e.key === " " && state.videoKey){
+      e.preventDefault();
+      if (video.paused) { video.play(); } else { video.pause(); }
+    }
+  });
+
+  // ---------- 导出 ----------
+  function exportNotes(){
+    if (state.notes.length === 0) return;
+    var lines = ["录像：" + (state.videoName || "未命名"), "标记数量：" + state.notes.length, ""];
+    var sorted = state.notes.slice().sort(function(a, b){ return a.t - b.t; });
+    for (var i = 0; i < sorted.length; i++){
+      lines.push((i + 1) + ". [" + fmtTime(sorted[i].t) + "] " + sorted[i].text);
+    }
+    var blob = new Blob([lines.join("\r\n")], { type: "text/plain;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    var base = (state.videoName || "录像").replace(/\.[^.]+$/, "");
+    a.href = url;
+    a.download = base + "-标记备注.txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+    showToast("已导出 " + state.notes.length + " 条备注");
+  }
+
+  // ---------- 初始化 ----------
+  setLoadedUI(false);
+  renderList();
+})();
+</script>
+</body>
+</html>
