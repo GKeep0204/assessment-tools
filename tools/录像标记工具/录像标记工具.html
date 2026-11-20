@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>交通录像标记工具</title>
+<style>
+  /* ===================== 基础与主题变量 ===================== */
+  :root{
+    --bg:#eceff5;
+    --card:#ffffff;
+    --ink:#0f172a;
+    --ink-2:#475569;
+    --ink-3:#94a3b8;
+    --line:#e4e9f2;
+    --accent:#2563eb;
+    --accent-soft:#eef4ff;
+    --stage:#0b0d12;
+    --ok:#0f9d58;
+    --warn:#c2410c;
+    --danger:#dc2626;
+    --radius:16px;
+    --shadow:0 1px 2px rgba(15,23,42,.06), 0 12px 28px -18px rgba(15,23,42,.35);
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB",system-ui,-apple-system,"Segoe UI",sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(1200px 500px at 15% -10%, #ffffff 0%, rgba(255,255,255,0) 60%),
+      linear-gradient(180deg,#f4f6fa 0%, var(--bg) 100%);
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{
+    height:100%;
+    max-width:1500px;
+    margin:0 auto;
+    padding:16px 20px 18px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
+  /* ===================== 顶部标题栏 ===================== */
+  header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  .brand{ display:flex; align-items:center; gap:11px; }
+  .logo{
+    width:34px; height:34px; border-radius:10px;
+    background:linear-gradient(150deg,#3b82f6,#1d4ed8);
+    box-shadow:0 6px 14px -6px rgba(37,99,235,.75);
+    display:grid; place-items:center; flex:0 0 auto;
+  }
+  .logo svg{ width:19px; height:19px; }
+  .brand h1{
+    font-size:17px; margin:0; font-weight:700; letter-spacing:.2px;
+  }
+  .tagline{ font-size:12px; color:var(--ink-3); margin-top:2px; }
+  .steps{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:12px; color:var(--ink-2); }
+  .steps b{
+    display:inline-flex; align-items:center; gap:5px;
+    background:#fff; border:1px solid var(--line); border-radius:999px;
+    padding:5px 10px; font-weight:500;
+  }
+  .steps b i{
+    font-style:normal; width:15px; height:15px; border-radius:50%;
+    background:var(--accent-soft); color:var(--accent);
+    font-size:10px; font-weight:700; display:grid; place-items:center;
+  }
+  .steps .arrow{ color:#cbd5e1; }
+
+  /* ===================== 主区域布局 ===================== */
+  main{
+    flex:1; min-height:0;
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 396px;
+    gap:12px;
+  }
+  .stage-col{ display:flex; flex-direction:column; gap:12px; min-width:0; min-height:0; }
+
+  /* ---------- 播放区 ---------- */
+  .stage{
+    position:relative;
+    flex:1; min-height:0;
+    background:var(--stage);
+    border-radius:var(--radius);
+    overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 18px 40px -26px rgba(2,6,23,.9), inset 0 0 0 1px rgba(148,163,184,.14);
+  }
+  video{
+    width:100%; height:100%;
+    object-fit:contain;
+    background:#000;
+    display:none;
+  }
+  body.has-video video{ display:block; }
+
+  /* 未载入录像时的引导画面 */
+  .empty-state{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:12px; text-align:center; padding:26px;
+    color:#93a0b8;
+    background:radial-gradient(600px 300px at 50% 40%, rgba(59,130,246,.10), transparent 70%);
+  }
+  body.has-video .empty-state{ display:none; }
+  .empty-state .ring{
+    width:64px; height:64px; border-radius:50%;
+    display:grid; place-items:center;
+    border:1px dashed rgba(148,163,184,.45);
+    background:rgba(148,163,184,.08);
+  }
+  .empty-state .ring svg{ width:26px; height:26px; opacity:.85; }
+  .empty-state h2{ margin:2px 0 0; font-size:15px; color:#c7d2e2; font-weight:600; }
+  .empty-state p{ margin:0; font-size:12.5px; line-height:1.7; max-width:420px; color:#7c8aa1; }
+  .empty-state code{
+    background:rgba(148,163,184,.14); border-radius:5px; padding:1px 6px;
+    color:#a9b6c9; font-family:Consolas,Menlo,monospace; font-size:12px;
+  }
+
+  /* ---------- 工具条 ---------- */
+  .toolbar{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    background:var(--card);
+    border-radius:14px;
+    padding:10px 12px;
+    box-shadow:var(--shadow);
+  }
+  button{ font-family:inherit; cursor:pointer; border:none; }
+  .btn{
+    height:38px; padding:0 16px; border-radius:10px;
+    font-size:13.5px; font-weight:600;
+    display:inline-flex; align-items:center; gap:7px;
+    transition:transform .08s ease, box-shadow .15s ease, background .15s ease;
+  }
+  .btn:active{ transform:translateY(1px); }
+  .btn-primary{
+    background:var(--accent); color:#fff;
+    box-shadow:0 8px 18px -10px rgba(37,99,235,.95);
+  }
+  .btn-primary:hover{ background:#1d4ed8; }
+  .btn-ghost{
+    background:#f4f6fa; color:var(--ink-2);
+    box-shadow:inset 0 0 0 1px var(--line);
+  }
+  .btn-ghost:hover{ background:#eef2f8; color:var(--ink); }
+  .btn-primary.flash{ animation:flash .55s ease 2; }
+  @keyframes flash{
+    0%,100%{ box-shadow:0 8px 18px -10px rgba(37,99,235,.95); }
+    50%{ box-shadow:0 0 0 4px rgba(37,99,235,.35), 0 8px 18px -10px rgba(37,99,235,.95); }
+  }
+
+  .file-chip{
+    display:inline-flex; align-items:center; gap:7px;
+    height:34px; padding:0 11px; border-radius:9px;
+    background:#f8fafc; box-shadow:inset 0 0 0 1px var(--line);
+    font-size:12.5px; color:var(--ink-3);
+    max-width:min(340px,42vw); min-width:0;
+  }
+  .file-chip.loaded{ color:var(--ink-2); background:#f2f8f4; box-shadow:inset 0 0 0 1px #cfe9d9; }
+  .file-chip .dot{ width:6px; height:6px; border-radius:50%; background:#cbd5e1; flex:0 0 auto; }
+  .file-chip.loaded .dot{ background:var(--ok); box-shadow:0 0 0 3px rgba(15,157,88,.14); }
+  .file-chip span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .spacer{ flex:1 1 auto; }
+
+  .timecode{
+    font-family:Consolas,Menlo,monospace;
+    font-variant-numeric:tabular-nums;
+    font-size:14px; font-weight:700; color:#0f172a;
+    background:#0f172a0d; border-radius:9px;
+    padding:7px 11px; letter-spacing:.4px;
+  }
+  .timecode small{ font-weight:500; color:var(--ink-3); font-size:11px; margin-right:5px; letter-spacing:0; }
+
+  /* ---------- 右侧备注面板 ---------- */
+  .panel{
+    background:var(--card);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    display:flex; flex-direction:column;
+    min-height:0;
+    overflow:hidden;
+  }
+  .panel-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:13px 15px 11px;
+    border-bottom:1px solid var(--line);
+  }
+  .panel-head h3{ margin:0; font-size:14px; font-weight:700; display:flex; align-items:center; gap:7px; }
+  .count-pill{
+    background:var(--accent-soft); color:var(--accent);
+    font-size:11.5px; font-weight:700; border-radius:999px; padding:2px 8px;
+    font-variant-numeric:tabular-nums;
+  }
+  .panel-head .sub{ font-size:11.5px; color:var(--ink-3); }
+
+  .composer{ padding:11px 13px 13px; border-bottom:1px solid var(--line); display:flex; flex-direction:column; gap:8px; }
+  #noteInput{
+    height:40px; width:100%;
+    border:1px solid var(--line); border-radius:10px;
+    padding:0 12px; font-size:13.5px; color:var(--ink);
+    font-family:inherit; background:#fcfdff;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  #noteInput::placeholder{ color:#b3bccb; }
+  #noteInput:focus{ outline:none; border-color:#a9c2f7; box-shadow:0 0 0 3px rgba(37,99,235,.13); background:#fff; }
+  #saveBtn{
+    height:40px; border-radius:10px;
+    background:linear-gradient(180deg,#3b82f6,#2563eb);
+    color:#fff; font-size:13.5px; font-weight:600;
+    display:flex; align-items:center; justify-content:center; gap:7px;
+    box-shadow:0 8px 18px -12px rgba(37,99,235,1);
+  }
+  #saveBtn:hover{ background:linear-gradient(180deg,#2f74ec,#1d4ed8); }
+  #saveBtn:active{ transform:translateY(1px); }
+  #saveBtn .now{ font-family:Consolas,Menlo,monospace; opacity:.85; font-weight:700; }
+
+  /* 备注列表 */
+  .list{
+    list-style:none; margin:0; padding:8px 9px;
+    flex:1; min-height:0; overflow-y:auto;
+    display:flex; flex-direction:column; gap:5px;
+    scrollbar-width:thin;
+  }
+  .list::-webkit-scrollbar{ width:8px; }
+  .list::-webkit-scrollbar-thumb{ background:#dfe5ee; border-radius:8px; }
+
+  .item{
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr) auto;
+    align-items:start; gap:9px;
+    padding:9px 9px 9px 10px;
+    border-radius:10px;
+    border:1px solid transparent;
+    cursor:pointer;
+    transition:background .13s, border-color .13s, box-shadow .13s;
+  }
+  .item:hover{ background:#f7faff; border-color:#e3ecfd; }
+  .item:focus-visible{ outline:2px solid rgba(37,99,235,.4); outline-offset:1px; }
+  .item.active{
+    background:var(--accent-soft); border-color:#bcd0fb;
+    box-shadow:inset 3px 0 0 var(--accent);
+  }
+  .time-badge{
+    font-family:Consolas,Menlo,monospace; font-variant-numeric:tabular-nums;
+    font-size:12px; font-weight:700; color:#1d4ed8;
+    background:#e8f0ff; border-radius:6px; padding:3px 6px;
+    line-height:1.35; white-space:nowrap;
+  }
+  .item.active .time-badge{ background:#dbe7ff; }
+  .note-text{
+    font-size:13px; line-height:1.55; color:#1e293b;
+    padding-top:1px; word-break:break-word;
+  }
+  .del{
+    width:22px; height:22px; border-radius:6px;
+    background:transparent; color:#c3ccda; font-size:15px; line-height:1;
+    display:grid; place-items:center;
+    opacity:0; transition:opacity .13s, background .13s, color .13s;
+  }
+  .item:hover .del{ opacity:1; }
+  .del:hover{ background:#fee2e2; color:var(--danger); }
+
+  .list-empty{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:6px; text-align:center; padding:30px 18px; color:var(--ink-3);
+    font-size:12.5px; line-height:1.7;
+  }
+  .list-empty .k{ font-size:22px; opacity:.28; }
+
+  .panel-foot{
+    border-top:1px solid var(--line);
+    padding:9px 12px;
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+  }
+  .panel-foot .tip{ font-size:11px; color:var(--ink-3); line-height:1.4; }
+  #exportBtn{
+    background:#fff; color:var(--ink-2); font-size:12px; font-weight:600;
+    border-radius:8px; padding:6px 10px;
+    box-shadow:inset 0 0 0 1px var(--line);
+    white-space:nowrap;
+  }
+  #exportBtn:hover{ background:#f6f8fc; color:var(--ink); }
+
+  /* ---------- 轻提示 ---------- */
+  .toast{
+    position:fixed; left:50%; top:74px; transform:translate(-50%, -10px);
+    background:#111827; color:#fff;
+    font-size:13px; padding:10px 16px; border-radius:10px;
+    box-shadow:0 16px 34px -14px rgba(2,6,23,.8);
+    opacity:0; pointer-events:none;
+    transition:opacity .18s ease, transform .18s ease;
+    z-index:99; max-width:80vw;
+  }
+  .toast.show{ opacity:1; transform:translate(-50%,0); }
+  .toast.ok{ background:#0f172a; border-left:3px solid var(--ok); }
+  .toast.warn{ background:#1f2937; border-left:3px solid #f59e0b; }
+
+  /* ---------- 窄屏适配 ---------- */
+  @media (max-width: 980px){
+    .app{ height:auto; padding:12px; }
+    main{ grid-template-columns:1fr; }
+    .stage{ min-height:46vh; }
+    .panel{ min-height:420px; }
+    .steps{ display:none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 5h11l5 7-5 7H4z"/><path d="M8 12h4"/>
+        </svg>
+      </div>
+      <div>
+        <h1>交通录像标记工具</h1>
+        <div class="tagline">载入录像 → 暂停到关键时刻 → 写下要队友留意的内容 → 点备注一键回看</div>
+      </div>
+    </div>
+    <div class="steps" aria-hidden="true">
+      <b><i>1</i>选择录像</b><span class="arrow">›</span>
+      <b><i>2</i>暂停定位</b><span class="arrow">›</span>
+      <b><i>3</i>写备注保存</b><span class="arrow">›</span>
+      <b><i>4</i>点备注跳回</b>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============ 左：播放区 ============ -->
+    <section class="stage-col">
+      <div class="stage" id="stage">
+        <video id="video" controls playsinline preload="metadata"></video>
+        <div class="empty-state" id="emptyState">
+          <div class="ring">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2.5" y="5" width="19" height="14" rx="2.5"/>
+              <path d="M10 9.5l5 2.5-5 2.5z" fill="currentColor" stroke="none"/>
+            </svg>
+          </div>
+          <h2>还没有载入录像</h2>
+          <p>点击下方「选择录像文件」，选中群里的 <code>京津道路车流.mp4</code>（或任意 MP4 录像）即可开始。<br>视频只在本机浏览器里读取，不会上传、不需要联网。</p>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button class="btn btn-primary" id="pickBtn" type="button">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+          选择录像文件
+        </button>
+        <input type="file" id="fileInput" accept="video/mp4,video/*,.mp4,.webm,.mov" hidden>
+        <div class="file-chip" id="fileChip"><span class="dot"></span><span id="fileName">尚未选择文件</span></div>
+        <div class="spacer"></div>
+        <div class="timecode" title="视频当前画面所在的时间"><small>当前</small><span id="timecode">00:00.0</span></div>
+        <button class="btn btn-ghost" id="playBtn" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" id="playIcon"><path d="M8 5v14l11-7z"/></svg>
+          <span id="playLabel">播放</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ============ 右：备注面板 ============ -->
+    <aside class="panel">
+      <div class="panel-head">
+        <h3>时间轴备注 <span class="count-pill" id="count">0</span></h3>
+        <span class="sub">点击任意一条 → 跳回该画面</span>
+      </div>
+
+      <div class="composer">
+        <input id="noteInput" type="text" maxlength="120" autocomplete="off"
+               placeholder="写一句提醒：画面里要让队友看什么？">
+        <button id="saveBtn" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/>
+          </svg>
+          保存备注<span class="now">@ <span id="saveTime">00:00.0</span></span>
+        </button>
+      </div>
+
+      <ul class="list" id="list"></ul>
+
+      <div class="panel-foot">
+        <span class="tip">备注自动存在本机浏览器里<br>刷新、关掉再打开都不会丢</span>
+        <button id="exportBtn" type="button">导出备注</button>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =========================================================
+     交通录像标记工具 —— 纯前端单文件实现
+     核心思路：
+       1) 用 <input type="file"> 让用户挑本地 MP4，再用 URL.createObjectURL
+          生成一个浏览器内存里的临时地址喂给 <video>，所以不需要服务器、
+          也不受 file:// 协议跨域限制（不会被当成外部资源拦截）。
+       2) 保存备注时直接读 video.currentTime，就是"当前画面"的秒数。
+       3) 点击备注把 video.currentTime 写回去，浏览器自己会把画面渲染到那一帧。
+       4) 备注按"视频文件名"存进 localStorage，刷新/重开页面后原样取回。
+     ========================================================= */
+
+  var KEY_PREFIX = 'traffic-video-markers::v1::'; // localStorage 键前缀
+
+  var video      = document.getElementById('video');
+  var fileInput  = document.getElementById('fileInput');
+  var pickBtn    = document.getElementById('pickBtn');
+  var fileChip   = document.getElementById('fileChip');
+  var fileNameEl = document.getElementById('fileName');
+  var timecodeEl = document.getElementById('timecode');
+  var saveTimeEl = document.getElementById('saveTime');
+  var playBtn    = document.getElementById('playBtn');
+  var playIcon   = document.getElementById('playIcon');
+  var playLabel  = document.getElementById('playLabel');
+  var noteInput  = document.getElementById('noteInput');
+  var saveBtn    = document.getElementById('saveBtn');
+  var listEl     = document.getElementById('list');
+  var countEl    = document.getElementById('count');
+  var exportBtn  = document.getElementById('exportBtn');
+  var toastEl    = document.getElementById('toast');
+
+  var objectUrl   = null;  // 当前录像的临时地址
+  var storageKey  = null;  // 当前录像对应的 localStorage 键（= 前缀 + 文件名）
+  var videoName   = '';    // 当前录像文件名
+  var notes       = [];    // [{ id, t, text, created }]
+  var activeId    = null;  // 当前高亮的备注
+  var storeWorks  = true;  // localStorage 是否可写
+
+  /* ------------------------- 小工具 ------------------------- */
+
+  // 秒 -> 00:08.0 这种"分:秒.十分位"格式
+  function fmt(t) {
+    var r = Math.round((isFinite(t) && t > 0 ? t : 0) * 10) / 10; // 先四舍五入到 0.1 秒
+    var m = Math.floor(r / 60);
+    var s = r - m * 60;
+    return (m < 10 ? '0' + m : '' + m) + ':' + (s < 10 ? '0' : '') + s.toFixed(1);
+  }
+
+  var toastTimer = null;
+  function toast(msg, kind) {
+    toastEl.textContent = msg;
+    toastEl.className = 'toast show' + (kind ? ' ' + kind : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.className = 'toast'; }, 2600);
+  }
+
+  function hasVideo() { return !!(storageKey && video.src); }
+
+  function updateTimecode(t) {
+    var s = fmt(t);
+    timecodeEl.textContent = s;
+    saveTimeEl.textContent = s;
+  }
+
+  /* ------------------------- 本地存储 ------------------------- */
+
+  function readNotes(key) {
+    try {
+      var raw = localStorage.getItem(key);
+      if (!raw) return [];
+      var arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return [];
+      // 过滤掉结构不完整的脏数据，保证列表一定能渲染
+      return arr.filter(function (n) {
+        return n && typeof n.text === 'string' && isFinite(n.t);
+      }).map(function (n) {
+        return { id: String(n.id || ('n' + n.t)), t: Number(n.t), text: n.text, created: n.created || 0 };
+      }).sort(function (a, b) { return a.t - b.t; });
+    } catch (e) {
+      storeWorks = false;
+      return [];
+    }
+  }
+
+  function writeNotes() {
+    if (!storageKey) return;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(notes));
+    } catch (e) {
+      storeWorks = false;
+      toast('浏览器禁止本地存储，备注只在本次会话有效', 'warn');
+    }
+  }
+
+  // 列出本机已保存过的录像（刷新后没重新选文件时，用它告诉用户"备注还在"）
+  function listSavedFiles() {
+    var out = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf(KEY_PREFIX) === 0) {
+          var arr = JSON.parse(localStorage.getItem(k) || '[]');
+          if (arr && arr.length) {
+            out.push({ name: k.slice(KEY_PREFIX.length), count: arr.length });
+          }
+        }
+      }
+    } catch (e) { /* 读不到就当没有 */ }
+    return out.sort(function (a, b) { return b.count - a.count; });
+  }
+
+  /* ------------------------- 渲染 ------------------------- */
+
+  function render() {
+    countEl.textContent = notes.length;
+    listEl.innerHTML = '';
+
+    if (!notes.length) {
+      var empty = document.createElement('li');
+      empty.className = 'list-empty';
+      if (!hasVideo()) {
+        var saved = listSavedFiles();
+        if (saved.length) {
+          // 刷新后还没重新选文件：明确告诉用户备注没丢，选同名文件就能取回
+          var tip = saved.slice(0, 3).map(function (s) {
+            return '· ' + s.name + '（' + s.count + ' 条）';
+          }).join('<br>');
+          empty.innerHTML = '<div class="k">⌛</div>还没有载入录像<br>' +
+            '<span style="color:#64748b">本机已存着这些录像的备注：</span><br>' +
+            '<span style="color:#1d4ed8;font-size:11.5px">' + tip + '</span><br>' +
+            '选中同名文件即可恢复';
+        } else {
+          empty.innerHTML = '<div class="k">◷</div>还没有载入录像<br>先点左边的「选择录像文件」';
+        }
+      } else {
+        empty.innerHTML = '<div class="k">◷</div>还没有备注<br>把画面停在想记录的瞬间，写下第一句';
+      }
+      listEl.appendChild(empty);
+      return;
+    }
+
+    notes.forEach(function (n) {
+      var li = document.createElement('li');
+      li.className = 'item' + (n.id === activeId ? ' active' : '');
+      li.dataset.id = n.id;
+      li.tabIndex = 0;
+      li.title = '点击跳回 ' + fmt(n.t) + ' 的画面';
+
+      var badge = document.createElement('span');
+      badge.className = 'time-badge';
+      badge.textContent = fmt(n.t);
+
+      var text = document.createElement('span');
+      text.className = 'note-text';
+      text.textContent = n.text;   // 用 textContent，天然避免 HTML 注入
+
+      var del = document.createElement('button');
+      del.className = 'del';
+      del.type = 'button';
+      del.textContent = '×';
+      del.title = '删除这条备注';
+      del.addEventListener('click', function (ev) {
+        ev.stopPropagation();      // 别触发整行的"跳转"
+        removeNote(n.id);
+      });
+
+      li.appendChild(badge);
+      li.appendChild(text);
+      li.appendChild(del);
+
+      li.addEventListener('click', function () { jumpTo(n); });
+      li.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); jumpTo(n); }
+      });
+
+      listEl.appendChild(li);
+    });
+  }
+
+  /* ------------------------- 载入录像 ------------------------- */
+
+  pickBtn.addEventListener('click', function () { fileInput.click(); });
+
+  fileInput.addEventListener('change', function () {
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+
+    // 简单挡一下误选的非视频文件，给出可理解的提示
+    if (f.type && f.type.indexOf('video/') !== 0 &&
+        !/\.(mp4|webm|ogg|mov|m4v)$/i.test(f.name)) {
+      toast('这不是视频文件，请选择 MP4 录像', 'warn');
+      return;
+    }
+
+    if (objectUrl) URL.revokeObjectURL(objectUrl); // 释放上一个临时地址，避免内存泄漏
+    objectUrl = URL.createObjectURL(f);
+
+    video.src = objectUrl;
+    video.load();               // 重新加载元数据
+    videoName = f.name;
+    document.body.classList.add('has-video');
+
+    fileNameEl.textContent = f.name + ' · ' + (f.size / 1048576).toFixed(1) + ' MB';
+    fileChip.classList.add('loaded');
+
+    // 按文件名恢复历史备注
+    storageKey = KEY_PREFIX + f.name;
+    notes = readNotes(storageKey);
+    activeId = null;
+    render();
+    updateTimecode(0);
+
+    toast('已载入 ' + f.name + (notes.length ? '，已恢复 ' + notes.length + ' 条历史备注' : ''), 'ok');
+  });
+
+  /* ------------------------- 播放控制 ------------------------- */
+
+  function setPlayState(playing) {
+    playLabel.textContent = playing ? '暂停' : '播放';
+    playIcon.innerHTML = playing
+      ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>'
+      : '<path d="M8 5v14l11-7z"/>';
+  }
+
+  playBtn.addEventListener('click', function () {
+    if (!hasVideo()) { toast('请先载入录像文件', 'warn'); return; }
+    if (video.paused) {
+      var p = video.play();
+      if (p && p.catch) {
+        p.catch(function () { toast('浏览器拦截了自动播放，请点视频自带的播放按钮', 'warn'); });
+      }
+    } else {
+      video.pause();
+    }
+  });
+
+  video.addEventListener('play',  function () { setPlayState(true); });
+  video.addEventListener('pause', function () { setPlayState(false); });
+  video.addEventListener('timeupdate', function () { updateTimecode(video.currentTime); });
+  video.addEventListener('seeked',     function () { updateTimecode(video.currentTime); });
+  video.addEventListener('loadedmetadata', function () { updateTimecode(video.currentTime); });
+  video.addEventListener('error', function () {
+    if (video.src) toast('这个视频无法播放，建议换成 H.264 编码的 MP4', 'warn');
+  });
+
+  /* ------------------------- 保存备注 ------------------------- */
+
+  saveBtn.addEventListener('click', addNote);
+
+  noteInput.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') { ev.preventDefault(); addNote(); }
+  });
+
+  // 空格键全局播放/暂停（输入框里打字不受影响）
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === ' ' && ev.target !== noteInput) {
+      ev.preventDefault();
+      playBtn.click();
+    }
+  });
+
+  function addNote() {
+    // 未载入录像：不报错，只给友好提示
+    if (!hasVideo()) {
+      toast('请先点「选择录像文件」载入录像，再保存备注', 'warn');
+      pickBtn.classList.remove('flash');
+      void pickBtn.offsetWidth;   // 强制重排，让动画能重播
+      pickBtn.classList.add('flash');
+      noteInput.focus();
+      return;
+    }
+
+    var text = noteInput.value.replace(/\s+/g, ' ').trim();
+    if (!text) {
+      toast('备注不能为空，请先写一句要队友留意什么', 'warn');
+      noteInput.focus();
+      return;
+    }
+
+    var t = video.currentTime || 0;   // ← 关键：直接取当前画面时间
+    var note = {
+      id: 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      t: t,
+      text: text,
+      created: Date.now()
+    };
+
+    notes.push(note);
+    notes.sort(function (a, b) { return a.t - b.t; });  // 列表始终按时间先后排
+    activeId = note.id;
+
+    writeNotes();
+    render();
+
+    noteInput.value = '';
+    noteInput.focus();
+    toast('已保存 ' + fmt(t) + ' 的备注', 'ok');
+  }
+
+  function removeNote(id) {
+    notes = notes.filter(function (n) { return n.id !== id; });
+    if (activeId === id) activeId = null;
+    writeNotes();
+    render();
+    toast('已删除这条备注', 'ok');
+  }
+
+  /* ------------------------- 点击备注跳回 ------------------------- */
+
+  function jumpTo(note) {
+    if (!hasVideo()) { toast('请先载入录像文件', 'warn'); return; }
+
+    activeId = note.id;
+    // 只切换高亮，不整表重绘，避免列表滚动位置被重置
+    Array.prototype.forEach.call(listEl.querySelectorAll('.item'), function (el) {
+      el.classList.toggle('active', el.dataset.id === note.id);
+    });
+    var cur = listEl.querySelector('.item.active');
+    if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest' });
+
+    // 目标时间夹在 [0, duration] 内，避免越界报错
+    var dur = isFinite(video.duration) ? video.duration : note.t;
+    var target = Math.max(0, Math.min(note.t, Math.max(0, dur - 0.04)));
+
+    if (video.readyState >= 1) {
+      video.currentTime = target;
+      updateTimecode(target);
+    } else {
+      // 元数据还没加载好，等 loadedmetadata 再跳
+      video.addEventListener('loadedmetadata', function once() {
+        video.removeEventListener('loadedmetadata', once);
+        video.currentTime = target;
+        updateTimecode(target);
+      });
+    }
+    // 不改动 video.paused：本来暂停就还是暂停（只换画面），本来在播就继续播
+    toast('已跳回 ' + fmt(note.t) + ' 的画面', 'ok');
+  }
+
+  /* ------------------------- 导出备注 ------------------------- */
+
+  exportBtn.addEventListener('click', function () {
+    if (!notes.length) { toast('还没有备注可以导出', 'warn'); return; }
+    var lines = [
+      '录像：' + (videoName || '未载入'),
+      '导出时间：' + new Date().toLocaleString('zh-CN'),
+      '共 ' + notes.length + ' 条备注',
+      '----------------------------------------'
+    ];
+    notes.forEach(function (n) { lines.push(fmt(n.t) + '    ' + n.text); });
+
+    var blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = (videoName || '录像').replace(/\.[^.]+$/, '') + '-备注.txt';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    toast('备注已导出为 txt 文件', 'ok');
+  });
+
+  /* ------------------------- 启动 ------------------------- */
+  render();
+  updateTimecode(0);
+  setPlayState(false);
+})();
+</script>
+</body>
+</html>
