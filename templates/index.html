@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>交通路向标记</title>
+    <style>
+        body { font-family: sans-serif; max-width: 900px; margin: 30px auto; padding: 0 16px; background: #f9fafb; }
+        video { width: 100%; background: #000; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .bar { display: flex; gap: 8px; margin: 12px 0; align-items: center; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .bar input { flex: 1; padding: 10px 15px; border: 1px solid #ccc; border-radius: 20px; outline: none; font-size: 16px; }
+        .bar input:focus { border-color: #facc15; }
+        .bar button { padding: 10px 20px; border: none; background: #facc15; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 16px; }
+        .bar button:hover { background: #fde047; }
+        .time { font-family: monospace; background: #eee; padding: 6px 12px; border-radius: 10px; font-weight: bold; color: #b45309; font-size: 16px; }
+        .note { display: flex; align-items: center; padding: 12px 16px; margin: 8px 0; background: white; border-radius: 8px; cursor: pointer; border-left: 5px solid #facc15; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: 0.2s; }
+        .note:hover { transform: translateX(5px); border-left-color: #b45309; }
+        .note .t { font-family: monospace; color: #b45309; font-weight: bold; margin-right: 15px; font-size: 16px; }
+        .note .x { margin-left: auto; color: #999; cursor: pointer; padding: 0 10px; font-weight: bold; }
+        .note .x:hover { color: #d00; }
+    </style>
+</head>
+<body>
+    <video id="video" controls preload="metadata">
+        <source src="/static/videos/video.mp4" type="video/mp4">
+    </video>
+
+    <div class="bar">
+        <span class="time" id="curTime">00:00</span>
+        <input id="noteInput" placeholder="输入路向备注，例如：留意右侧白车...">
+        <button id="addBtn">+ 标记</button>
+    </div>
+
+    <div id="notesList"></div>
+
+<script>
+const video = document.getElementById('video');
+const curTime = document.getElementById('curTime');
+const noteInput = document.getElementById('noteInput');
+const addBtn = document.getElementById('addBtn');
+const notesList = document.getElementById('notesList');
+
+let notes = [];
+
+function fmt(sec) {
+    const m = Math.floor(sec / 60).toString().padStart(2, '0');
+    const s = Math.floor(sec % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+}
+
+video.addEventListener('timeupdate', () => {
+    curTime.textContent = fmt(video.currentTime);
+});
+
+async function loadNotes() {
+    const res = await fetch('/api/notes');
+    notes = await res.json();
+    renderNotes();
+}
+
+function renderNotes() {
+    if (notes.length === 0) {
+        notesList.innerHTML = '<p style="color:#999; text-align:center;">还没有标记，播放视频并添加吧！</p >';
+        return;
+    }
+    notesList.innerHTML = notes.map(n => `
+        <div class="note" data-id="${n.id}" data-time="${n.time}">
+            <span class="t">${fmt(n.time)}</span>
+            <span>${escapeHtml(n.text)}</span>
+            <span class="x" data-del="${n.id}">✕</span>
+        </div>
+    `).join('');
+
+    document.querySelectorAll('.note').forEach(el => {
+        el.addEventListener('click', (e) => {
+            if (e.target.dataset.del) return;
+            video.currentTime = parseFloat(el.dataset.time);
+            video.pause();
+        });
+    });
+
+    document.querySelectorAll('[data-del]').forEach(el => {
+        el.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await fetch('/api/notes/' + el.dataset.del, { method: 'DELETE' });
+            loadNotes();
+        });
+    });
+}
+
+function escapeHtml(s) {
+    return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+async function addNote() {
+    const text = noteInput.value.trim();
+    if (!text) { noteInput.focus(); return; }
+
+    await fetch('/api/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, time: video.currentTime })
+    });
+    noteInput.value = '';
+    loadNotes();
+}
+
+addBtn.addEventListener('click', addNote);
+noteInput.addEventListener('keydown', e => { if (e.key === 'Enter') addNote(); });
+
+loadNotes();
+</script>
+</body>
+</html>
