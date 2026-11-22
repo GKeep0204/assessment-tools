@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>运行说明｜路镜 · 交通录像标记</title>
+    <link rel="stylesheet" href="说明文档.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <a class="brand" href="index.html">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-text">
+            <strong>路镜 · 交通录像标记</strong>
+            <span>ROADNOTE</span>
+          </span>
+        </a>
+        <nav class="nav" aria-label="页面导航">
+          <a href="AI使用文档.html">AI 使用文档</a>
+          <a class="primary" href="index.html">打开标记工具</a>
+        </nav>
+      </header>
+
+      <main class="paper">
+        <section class="hero">
+          <p class="eyebrow">QUICK START GUIDE</p>
+          <h1>运行说明</h1>
+          <p class="hero-copy">
+            完全在浏览器本地运行的交通录像标记工具。无需安装 Python、Node.js、YOLO
+            或其他依赖，也不需要联网。
+          </p>
+          <div class="browser-pill">
+            <span class="browser-dot" aria-hidden="true"></span>
+            推荐使用 Microsoft Edge 打开
+          </div>
+        </section>
+
+        <div class="content">
+          <div class="callout">
+            <strong>打开方式：</strong>建议右键点击 <code>index.html</code>，选择“打开方式
+            → Microsoft Edge”。两份说明文档已经改成 HTML，也可以直接用 Edge
+            打开，不会再被 Word 打开。
+          </div>
+
+          <h2>使用步骤</h2>
+          <ol class="steps">
+            <li>解压整个压缩包，保持 HTML、CSS 和 JavaScript 文件在同一个文件夹内。</li>
+            <li>
+              用 Microsoft Edge 打开 <a href="index.html"><code>index.html</code></a>。
+            </li>
+            <li>
+              点击页面右上角的“载入录像”，选择群里的
+              <code>京津道路车流.mp4</code>；也可以直接把视频拖进播放器区域。
+            </li>
+            <li>
+              播放到需要记录的画面后暂停，在右侧输入备注，点击“保存当前画面”。按
+              <code>Enter</code> 也可以保存。
+            </li>
+            <li>
+              后续点击备注左侧的时间或备注文字，视频会暂停并跳回对应时刻。
+            </li>
+          </ol>
+
+          <p>
+            视频只通过浏览器的本地对象地址读取，不会上传。备注按视频自动保存在当前浏览器中；重新打开工具并载入同一段视频后，已有备注仍会显示。
+          </p>
+
+          <h2>演示中的 3 条标记</h2>
+          <p>
+            <a href="https://pan.baidu.com/s/1hq_seCzEAIqJqw-Gr49nKA?pwd=rhzf"
+              >演示视频.mp4（百度网盘，提取码 rhzf）</a
+            >
+            在实际操作中依次添加了以下内容：
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>备注内容</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>00:01.12</td>
+                <td>留意右侧白色面包车驶入路口，观察它与右侧轿车的通行顺序。</td>
+              </tr>
+              <tr>
+                <td>00:02.79</td>
+                <td>注意左下方黄绿色出租车即将进入路口，跟踪它的左转路径。</td>
+              </tr>
+              <tr>
+                <td>00:06.34</td>
+                <td>黄蓝相间公交车横穿画面，留意它遮挡右侧车道的情况。</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            视频末尾从较晚时刻点击第二条旧备注，画面回到黄绿色出租车驶入路口的位置，并显示“已回到 00:02.79”。
+          </p>
+
+          <h2>文件清单</h2>
+          <ul class="plain-list">
+            <li><code>index.html</code>：工具页面。</li>
+            <li><code>styles.css</code>：工具样式。</li>
+            <li><code>app.js</code>：播放、标记、跳转和本地保存逻辑。</li>
+            <li><code>运行说明.html</code>：本说明。</li>
+            <li><code>AI使用文档.html</code>：AI 使用记录和实际验证结果。</li>
+            <li><code>AI验证截图.jpg</code>：点击旧备注后的验证截图。</li>
+            <li><code>演示视频.mp4</code>：3 条标记及点击旧标记回看的操作录像。</li>
+            <li><code>说明文档.css</code>：两份 HTML 说明文档的样式。</li>
+          </ul>
+
+          <h2>常见问题</h2>
+          <ul class="plain-list">
+            <li>
+              如果视频无法播放，请确认使用的是最新版 Microsoft Edge，并确认视频为
+              MP4（H.264）格式。
+            </li>
+            <li>
+              如果浏览器提示不允许加载本地文件，可在解压后的文件夹中打开命令行并运行
+              <code>npx serve</code>，再用终端显示的地址访问；这是可选的本地预览方式，不是必须安装的依赖。
+            </li>
+            <li>标记保存在浏览器本地。清除浏览器站点数据后，已有标记会被删除。</li>
+          </ul>
+        </div>
+
+        <div class="footer">路镜 ROADNOTE · 本地交通录像标记工具</div>
+      </main>
+    </div>
+  </body>
+</html>
