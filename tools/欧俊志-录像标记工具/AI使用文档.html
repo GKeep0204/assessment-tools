@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>AI 使用文档｜路镜 · 交通录像标记</title>
+    <link rel="stylesheet" href="说明文档.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <a class="brand" href="index.html">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-text">
+            <strong>路镜 · 交通录像标记</strong>
+            <span>ROADNOTE</span>
+          </span>
+        </a>
+        <nav class="nav" aria-label="页面导航">
+          <a href="运行说明.html">运行说明</a>
+          <a class="primary" href="index.html">打开标记工具</a>
+        </nav>
+      </header>
+
+      <main class="paper">
+        <section class="hero">
+          <p class="eyebrow">AI PROBLEM-SOLVING RECORD</p>
+          <h1>AI 使用文档</h1>
+          <p class="hero-copy">
+            聚焦一个实际技术问题：点击旧备注后，如何让视频真正暂停并回到对应画面。
+          </p>
+          <div class="browser-pill">
+            <span class="browser-dot" aria-hidden="true"></span>
+            使用 Microsoft Edge 阅读
+          </div>
+        </section>
+
+        <div class="content">
+          <h2>一、选择的问题</h2>
+          <div class="definition">
+            <strong>
+              点击列表中的旧备注后，怎样让视频真正暂停并回到当时画面，而不是只改变当前时间的文字或列表高亮？
+            </strong>
+            <p>
+              这个问题对应任务中的核心操作“点击备注回看”，也直接影响评委验收：如果只修改界面而不修改
+              <code>&lt;video&gt;</code>
+              的播放位置，列表看起来正常，但画面没有回来。
+            </p>
+          </div>
+
+          <h2>二、围绕该问题的完整对话</h2>
+          <p>以下为从提出需求、讨论实现到用真实录像验收的完整对话记录。</p>
+
+          <div class="chat">
+            <div class="message message--user">
+              <span class="speaker">使用者</span>
+              <p>
+                我在做一个交通录像标记网页。保存备注时记录当前视频时间；之后点击列表里的旧备注，视频要回到那个时刻。最容易出错的是，页面可能只更新了时间文字，视频却还在原来的位置。
+              </p>
+            </div>
+            <div class="message message--ai">
+              <span class="speaker">AI</span>
+              <p>
+                时间文字不能单独维护，必须以视频对象的
+                <code>currentTime</code>
+                为准。保存备注时读取
+                <code>video.currentTime</code>；点击备注时把这个时间重新赋给
+                <code>video.currentTime</code>，再调用统一的界面更新函数。
+              </p>
+            </div>
+            <div class="message message--user">
+              <span class="speaker">使用者</span>
+              <p>
+                如果点击旧备注时视频正在播放，赋值后它会不会继续往前跑？我需要停住，方便队友看清画面。
+              </p>
+            </div>
+            <div class="message message--ai">
+              <span class="speaker">AI</span>
+              <p>
+                会。所以顺序必须是先
+                <code>pause()</code>，再设置
+                <code>currentTime</code>。如果先改时间、后暂停，界面可能已经定位，但视频随后又向前走了几帧。
+              </p>
+            </div>
+            <div class="message message--user">
+              <span class="speaker">使用者</span>
+              <p>请写出最终的跳转逻辑。连续添加多条备注后，前面的记录也不能丢。</p>
+            </div>
+            <div class="message message--ai">
+              <span class="speaker">AI</span>
+              <p>最终使用的逻辑如下：</p>
+            </div>
+          </div>
+
+          <pre><code>function jumpToNote(note) {
+  video.pause();
+  video.currentTime = Math.min(note.time, video.duration || note.time);
+  state.activeNoteId = note.id;
+  updateTime();
+  renderNotes();
+  showToast(`已回到 ${formatTime(note.time)}`);
+}</code></pre>
+
+          <p>
+            所有备注保存在
+            <code>state.notes</code>
+            数组中，保存新备注时使用
+            <code>push</code>
+            追加；<code>renderNotes()</code>
+            只重新绘制列表，不会清空原数组。因此连续添加时，旧备注会继续保留。
+          </p>
+
+          <div class="chat">
+            <div class="message message--user">
+              <span class="speaker">使用者</span>
+              <p>点击时间和点击备注文字都应该能跳转，而且列表要有明确反馈。</p>
+            </div>
+            <div class="message message--ai">
+              <span class="speaker">AI</span>
+              <p>
+                两个元素都绑定了同一个
+                <code>jumpToNote(note)</code>。跳转后设置
+                <code>activeNoteId</code>，对应备注会显示高亮，同时弹出“已回到
+                00:02.79”之类的提示。播放器中的时间、时间轴和右侧“当前画面”时间也会同步刷新。
+              </p>
+            </div>
+            <div class="message message--user">
+              <span class="speaker">使用者</span>
+              <p>
+                请用真实录像验证，不要只看代码。添加三条备注，再从较晚画面点击其中一条旧备注，检查视频时间、播放状态和画面内容。
+              </p>
+            </div>
+            <div class="message message--ai">
+              <span class="speaker">AI</span>
+              <p>
+                已完成验证。提交录屏中添加了
+                <code>00:01.12</code>、<code>00:02.79</code>、<code>00:06.34</code>
+                三条备注；随后从较晚画面点击
+                <code>00:02.79</code>
+                的旧备注，播放器时间回到
+                <code>00:02.79</code>，暂停图标处于暂停状态，画面回到黄绿色出租车驶入路口的位置，并出现“已回到
+                00:02.79”的提示。
+              </p>
+            </div>
+          </div>
+
+          <h2>三、验证画面</h2>
+          <img
+            class="screenshot"
+            src="AI验证截图.jpg"
+            alt="点击旧备注后回到 00:02.79 的验证画面"
+          />
+          <p class="caption">点击旧备注后，视频时间回到 00:02.79，并显示回看提示。</p>
+
+          <section class="result">
+            <h2>一句话检查结果</h2>
+            <p>
+              我在提交的未剪辑录屏中看到添加了三条备注，并从
+              <code>00:08.20</code>
+              的画面点击
+              <code>00:02.79</code>
+              的旧备注后，播放器暂停并回到
+              <code>00:02.79</code>
+              的黄绿色出租车画面，同时显示“已回到 00:02.79”的提示。
+            </p>
+          </section>
+        </div>
+
+        <div class="footer">路镜 ROADNOTE · AI 辅助开发与验证记录</div>
+      </main>
+    </div>
+  </body>
+</html>

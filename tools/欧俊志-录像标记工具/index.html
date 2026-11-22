@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="路镜是一款本地运行的交通录像标记工具，可为画面添加时间备注并一键回看。"
+    />
+    <title>路镜 · 交通录像标记</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-glow" aria-hidden="true"></div>
+
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <span class="brand-mark__lamp"></span>
+          </div>
+          <div>
+            <div class="brand-name">路镜 <span>ROADNOTE</span></div>
+            <p>把画面里的关键瞬间，留给下一位看录像的人。</p>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <div class="local-badge">
+            <span class="local-badge__dot"></span>
+            本地运行 · 视频不上传
+          </div>
+          <button class="button button--primary" id="openVideoButton" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7.5h6l1.8 2H20v8.8a1.7 1.7 0 0 1-1.7 1.7H5.7A1.7 1.7 0 0 1 4 18.3V7.5Z"></path>
+              <path d="M7 4h6l2 3.5"></path>
+            </svg>
+            载入录像
+          </button>
+          <input
+            id="fileInput"
+            class="visually-hidden"
+            type="file"
+            accept="video/mp4,video/webm,video/quicktime,video/*"
+          />
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="video-card" id="videoCard" aria-label="录像播放器">
+          <div class="video-stage" id="videoStage">
+            <video id="video" playsinline preload="metadata"></video>
+
+            <div class="empty-state" id="emptyState">
+              <div class="road-sign" aria-hidden="true">
+                <svg viewBox="0 0 92 92">
+                  <path d="M8 23 31 8l34 5 19 22-7 34-25 15-29-7L7 55 8 23Z"></path>
+                  <path d="M34 67V38h27M47 26l14 12-14 12"></path>
+                </svg>
+              </div>
+              <p class="empty-kicker">开始复盘</p>
+              <h1>载入一段道路录像</h1>
+              <p class="empty-copy">支持 MP4、WebM 等常见格式。文件只在当前浏览器中读取。</p>
+              <button class="button button--light" id="emptyOpenButton" type="button">
+                选择本地视频
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12h14M14 7l5 5-5 5"></path>
+                </svg>
+              </button>
+              <span class="drop-hint">也可以直接把视频拖到这里</span>
+            </div>
+
+            <div class="drop-overlay" id="dropOverlay" aria-hidden="true">
+              <div class="drop-overlay__inner">
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 16V4m0 0L7 9m5-5 5 5"></path>
+                  <path d="M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14"></path>
+                </svg>
+                松开以载入录像
+              </div>
+            </div>
+
+            <div class="video-meta" id="videoMeta" hidden>
+              <span id="fileName">未命名录像</span>
+              <span class="video-meta__divider"></span>
+              <span>本地视频</span>
+            </div>
+
+            <button class="stage-play" id="stagePlayButton" type="button" aria-label="播放" hidden>
+              <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m9 7 8 5-8 5V7Z"></path>
+              </svg>
+              <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 7v10M15 7v10"></path>
+              </svg>
+            </button>
+          </div>
+
+          <div class="player-controls" id="playerControls">
+            <button class="icon-button play-button" id="playButton" type="button" aria-label="播放" disabled>
+              <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m9 7 8 5-8 5V7Z"></path>
+              </svg>
+              <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 7v10M15 7v10"></path>
+              </svg>
+            </button>
+
+            <span class="timecode timecode--current" id="currentTime">00:00.000</span>
+            <input
+              class="timeline"
+              id="timeline"
+              type="range"
+              min="0"
+              max="0"
+              step="0.01"
+              value="0"
+              aria-label="播放进度"
+              disabled
+            />
+            <span class="timecode" id="duration">00:00.000</span>
+            <button class="icon-button" id="muteButton" type="button" aria-label="静音" disabled>
+              <svg class="icon-volume" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 10v4h4l5 4V6L9 10H5Z"></path>
+                <path d="M17 9.5a4 4 0 0 1 0 5M19.5 7a7.5 7.5 0 0 1 0 10"></path>
+              </svg>
+              <svg class="icon-muted" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 10v4h4l5 4V6L9 10H5Z"></path>
+                <path d="m17 10 4 4m0-4-4 4"></path>
+              </svg>
+            </button>
+          </div>
+
+          <div class="player-foot">
+            <span><kbd>空格</kbd> 播放 / 暂停</span>
+            <span class="player-foot__note">先暂停，再写下你希望队友留意的内容。</span>
+          </div>
+        </section>
+
+        <aside class="notes-card" aria-label="画面备注">
+          <div class="notes-heading">
+            <div>
+              <p class="eyebrow">REVIEW NOTES</p>
+              <h2>画面备注 <span class="note-count" id="noteCount">0</span></h2>
+            </div>
+            <div class="notes-heading__mark" aria-hidden="true">01—</div>
+          </div>
+
+          <div class="composer" id="composer">
+            <div class="composer-label">
+              <span>当前画面</span>
+              <strong id="composerTime">00:00.000</strong>
+            </div>
+            <textarea
+              id="noteInput"
+              rows="3"
+              maxlength="120"
+              placeholder="例：留意右侧车道的白车，它正在向左并线。"
+              aria-label="备注内容"
+              disabled
+            ></textarea>
+            <div class="composer-bottom">
+              <span class="composer-help"><span id="charCount">0</span> / 120</span>
+              <button class="button button--accent" id="saveNoteButton" type="button" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14M5 12h14"></path>
+                </svg>
+                保存当前画面
+              </button>
+            </div>
+            <p class="composer-tip">保存时会自动暂停，时间点不会继续跑动。</p>
+          </div>
+
+          <div class="notes-divider">
+            <span>标记时间线</span>
+            <span id="notesSortLabel">按时间排列</span>
+          </div>
+
+          <div class="notes-list-wrap">
+            <div class="notes-empty" id="notesEmpty">
+              <div class="notes-empty__icon" aria-hidden="true">
+                <svg viewBox="0 0 32 32">
+                  <path d="M7 8.5A2.5 2.5 0 0 1 9.5 6h13A2.5 2.5 0 0 1 25 8.5v15a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 7 23.5v-15Z"></path>
+                  <path d="M11 12h10M11 16h10M11 20h6"></path>
+                </svg>
+              </div>
+              <strong>还没有备注</strong>
+              <p>播放录像，停在关键画面，写下希望队友关注的内容。</p>
+            </div>
+            <ol class="notes-list" id="notesList"></ol>
+          </div>
+
+          <div class="notes-footer">
+            <span>标记自动保存在此浏览器</span>
+            <span class="save-status" id="saveStatus">
+              <span class="save-status__dot"></span>
+              已就绪
+            </span>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span class="toast__icon">✓</span>
+      <span id="toastText">备注已保存</span>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
